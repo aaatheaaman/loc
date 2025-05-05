@@ -1,3 +1,5 @@
+require('dotenv').config(); // Load environment variables
+
 const express = require('express');
 const bodyParser = require('body-parser');
 const path = require('path');
@@ -9,12 +11,13 @@ const app = express();
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ✅ MongoDB Setup
-mongoose.connect('mongodb://localhost:27017/locationDB', {
+// ✅ MongoDB Atlas connection using .env
+mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true
-}).then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('MongoDB connection error:', err));
+})
+.then(() => console.log('Connected to MongoDB Atlas'))
+.catch(err => console.error('MongoDB Atlas connection error:', err));
 
 // Location schema and model
 const locationSchema = new mongoose.Schema({
